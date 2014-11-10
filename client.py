@@ -26,10 +26,9 @@ def sendmsg(msgid, hostname, portnum, sender, receiver):
     send(s, "RCPT TO: %s\r\n" % receiver)
     print(s.recv(500))
 
-    send(s, "DATA\r\nFrom: %s\r\nTo: %s\r\nDate: %s -0500\r\nSubject: msg %d\r\n\r\nContents of message %d end here.\r\n.\r\n" % (sender, receiver, datetime.datetime.now().ctime(), msgid, msgid))
+    send(s, "DATA\r\nDate: %s -0500\r\nSubject: msg %d\r\n\r\nContents of message %d end here.\r\n.\r\n" % (datetime.datetime.now().ctime(), msgid, msgid))
     print(s.recv(500))
 
-# for i in range(1, 10):
-#     sendmsg(i, host, port, fromaddr, toaddr)
+for i in range(1, 300):
+    sendmsg(i, host, port, fromaddr, toaddr)
 
-sendmsg(1, host, port, fromaddr, toaddr)
