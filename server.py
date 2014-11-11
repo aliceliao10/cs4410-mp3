@@ -115,7 +115,7 @@ class ConnectionHandler:
         self.message_buf     = ''
         self.message_receive = ''
         self.mailbox_buf     = list()
-        self.count           = 0
+        self.error_count     = 0
         
         # Temporary message buffer
         
@@ -138,17 +138,21 @@ class ConnectionHandler:
     def handle(self):
         
         self.send('220 mw828 SMTP CS4410MP3')
-        print('server> waiting for HELO')
+        print('server> 220 mw828 SMTP CS4410MP3')
         self.state = 'helo'
         while self.state != 'closed':
             self.switch[self.state]()
+            if self.error_count >= 20:
+                self.timeout()
         self.socket.close()
     
     def send(self, msg):
         
         try:
-            self.socket.send(msg+'\r\n')
+            self.socket.send(msg.encode('utf-8')+'\r\n')
         except socket.error:
+            self.error_count += 1
+            self.socket.close()
             print('server> Send error: socket closed')
             return
         
@@ -163,7 +167,9 @@ class ConnectionHandler:
                     self.message_buf += self.socket.recv(500)
                     self.socket.settimeout(None)
                 except socket.error:
-                    self.timeout();
+                    self.timeout()
+                    print('server> Receive error: socket closed')
+                    self.socket.close()
                     return
                     
         message_return = self.message_buf[0:self.message_buf.find('\r\n')]
@@ -171,10 +177,10 @@ class ConnectionHandler:
         return message_return
         
     def timeout(self):
-        
+        print('server> 421 4.4.2 mw828 Error: timeout exceeded')
         self.send('421 4.4.2 mw828 Error: timeout exceeded')
         self.state = 'closed'
-        self.socket.close()
+        
     
     
     # server's FSM
@@ -185,6 +191,7 @@ class ConnectionHandler:
         
         self.message_receive = self.receive()
         if self.message_receive == None:
+            self.error_count += 1
             return
         self.message_receive = self.message_receive.strip()
         space = self.message_receive.find(' ')
@@ -199,100 +206,131 @@ class ConnectionHandler:
             self.client = client_t
             # self.mailbox_buf.append('Number ' + str(self.count))
             self.state = 'mail_from'
+            print('server> 250 mw828')
             self.send('250 mw828')
             
         # Error command handling
         
         elif command_t == 'HELO' or self.message_receive.upper() == 'HELO':
+            print('server> 501 Syntax: HELO yourhostname')
             self.send('501 Syntax: HELO yourhostname')
+            self.error_count += 1
         elif command_t == 'MAIL' or command_t == 'RCPT' or self.message_receive.upper() == 'DATA':
+            print('server> 503 Error: need HELO command')
             self.send('503 Error: need HELO command')
+            self.error_count += 1
         else:
+            print('server> 500 Error: command not recognized')
             self.send('500 Error: command not recognized')
-            
+            self.error_count += 1
         return
                  
     def mail_from(self):
         
-        print('server> waiting for MAIL FROM')
-        
         self.message_receive = self.receive()
         if self.message_receive == None:
+            self.error_count += 1
             return
         self.message_receive = self.message_receive.strip()
         if self.message_receive.upper() == 'HELO':
+            print('server> 503 Error: duplicate HELO')
             self.send('503 Error: duplicate HELO')
+            self.error_count += 1
             return
         elif self.message_receive.upper() == 'DATA':
+            print('server> 503 Error: need MAIL FROM command')
             self.send('503 Error: need MAIL FROM command')
+            self.error_count += 1
             return
         colon       = self.message_receive.find(':')
         command_t   = self.message_receive[0:colon].strip().upper()
         from_addr_t = self.message_receive[colon+1: ].strip()
         print('client> '+ self.message_receive)
-        if command_t == 'MAIL FROM' and from_addr_t.find(' ') == -1 and colon != -1:
+        if command_t == 'MAIL FROM' and from_addr_t.find(' ') == -1 and colon != -1 and from_addr_t:
             # self.mailbox_buf.append('From: ' + from_addr)
             self.from_addr = from_addr_t
             self.state = 'rcpt_to'
+            print('server> 250 OK')
             self.send('250 OK')
             
         # Error command handling
         
         elif command_t == 'MAIL FROM' and colon != -1:
+            print('server> 555 <'+from_addr_t+'>: Sender address rejected')
             self.send('555 <'+from_addr_t+'>: Sender address rejected')
+            self.error_count += 1
         elif command_t == 'MAIL FROM' or self.message_receive.upper().find('MAIL FROM') != -1:
+            print('server> 501 Syntax: MAIL FROM: youremail@yourhost.com')
             self.send('501 Syntax: MAIL FROM: youremail@yourhost.com')
+            self.error_count += 1
         elif command_t == 'RCPT TO':
+            print('server> 503 Error: need MAIL FROM command')
             self.send('503 Error: need MAIL FROM command')
+            self.error_count += 1
         else:
+            print('server> 500 Error: command not recognized')
             self.send('500 Error: command not recognized')
+            self.error_count += 1
                 
     def rcpt_to(self):
         
-        print('server> Waiting for RCPT TO')
-        
         self.message_receive = self.receive()
         if self.message_receive == None:
+            self.error_count += 1
             return
         self.message_receive = self.message_receive.strip()
         if self.message_receive.upper() == 'HELO':
+            print(('server> 503 Error: duplicate HELO'))
             self.send('503 Error: duplicate HELO')
+            self.error_count += 1
             return
         elif self.message_receive.upper() == 'DATA':
+            print('server> 503 Error: need RCPT TO command')
             self.send('503 Error: need RCPT TO command')
+            self.error_count += 1
             return
         
         colon     = self.message_receive.find(':')
         command_t = self.message_receive[0:colon].strip().upper()
         to_addr_t = self.message_receive[colon+1: ].strip()
         print('client> '+ self.message_receive)
-        if command_t == 'RCPT TO' and to_addr_t.find(' ') == -1 and colon != -1:
+        if command_t == 'RCPT TO' and to_addr_t.find(' ') == -1 and colon != -1 and to_addr_t:
             # self.mailbox_buf.append('To: ' + to_addr)
             self.to_addrs.append(to_addr_t)
+            print('server> 250 OK')
             self.send('250 OK')
             self.state = 'rcpt_to_set'
             
         # Error commands
         
         elif command_t == 'RCPT TO' and colon != -1:
+            print('server> 555 <'+to_addr_t+'>: Recepient address invalid')
             self.send('555 <'+to_addr+'>: Recepient address invalid')
+            self.error_count += 1
         elif command_t == 'RCPT TO' or self.message_receive.upper().find('RCPT TO') != -1:
+            print('server> 501 Syntax: RCPT TO: youremail@yourhost.com')
             self.send('501 Syntax: RCPT TO: youremail@yourhost.com')
+            self.error_count += 1
         elif command_t == 'MAIL FROM':
+            print('server> 503 Error: nested MAIL command')
             self.send('503 Error: nested MAIL command')
+            self.error_count += 1
         else:
+            print('server> 500 Error: command not recognized')
             self.send('500 Error: command not recognized')
+            self.error_count += 1
                 
     def rcpt_to_set(self):
         
-        print('server> Waiting for DATA or another RCPT TO')
-        
         self.message_receive = self.receive()
         if self.message_receive == None:
+            self.error_count += 1
             return
         self.message_receive = self.message_receive.strip()
         if self.message_receive == 'HELO':
+            print('server> 503 Error: duplicate HELO')
             self.send('503 Error: duplicate HELO')
+            self.error_count += 1
             return
         print('client> '+ self.message_receive)
         
@@ -308,29 +346,39 @@ class ConnectionHandler:
             self.state = 'data'
         elif command_t == 'RCPT TO' and to_addr_t.find(' ') == -1 and colon != -1:
             self.to_addrs.append(to_addr_t)
+            print('server> 250 OK')
             self.send('250 OK')
             
         # Error commands
         
         elif command_t == 'RCPT TO' and colon != -1:
+            print('server> 555 <'+to_addr_t+'>: Recepient address invalid')
             self.send('555 <'+to_addr_t+'>: Recepient address invalid')
+            self.error_count += 1
         elif command_t == 'RCPT TO':
+            print('server> 501 Syntax: RCPT TO: youremail@yourhost.com')
             self.send('501 Syntax: RCPT TO: youremail@yourhost.com')
+            self.error_count += 1
         elif command_t == 'MAIL FROM':
+            print('server> 503 Error: nested MAIL command')
             self.send('503 Error: nested MAIL command')
+            self.error_count += 1
         else:
+            print('server> 500 Error: command not recognized')
             self.send('500 Error: command not recognized')
+            self.error_count += 1
 
 
     def data(self):
         
+        print('server> 354 End data with <CR><LF>.<CR><LF>')
         self.send('354 End data with <CR><LF>.<CR><LF>')
-        print('server> Receiving data')
         
         # recieving data until <CR><LF>.<CR><LF> reached
         
         self.message_receive = self.receive()
         if self.message_receive == None:
+            self.error_count += 1
             return
         while self.message_receive != '.':
             self.data_buf.append(self.message_receive)
@@ -371,11 +419,10 @@ class ConnectionHandler:
             for i in self.mailbox_buf:
                 mailbox_file.write(i + '\n')
             mailbox_file.write('\n')
-            mailbox_file.close()
+            mailbox_file.close()     
+            print('server> 250 OK: delivered message ' + str(message_count))
             self.send('250 OK: delivered message ' + str(message_count))
-            print('server> mail #' + str(message_count) +' delivered')
             
-                
         self.state = 'closed'
         
     

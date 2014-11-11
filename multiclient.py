@@ -7,7 +7,7 @@ import threading
 import random
 import string
 from threading import Thread
-
+from random import randint
 # This is the multi-threaded client.  This program should be able to run
 # with no arguments and should connect to "127.0.0.1" on port 8765.  It
 # should run a total of 1000 operations, and be extremely likely to
@@ -19,94 +19,158 @@ toaddr = sys.argv[3] if len(sys.argv) > 3 else "nobody@example.com"
 fromaddr = sys.argv[4] if len(sys.argv) > 4 else "nobody@example.com"
 
 counter = 0
-counter_lock = threading.Lock()
-socket_lock  = threading.Lock()
+sender_lock      = threading.Lock()
+task_add_cv      = threading.Condition(sender_lock)
+task_finished_cv = threading.Condition(sender_lock)
+wait             = False
+ready_socket     = None
 
-
+# generate random array
 # Reference:http://stackoverflow.com/questions/2257441/random-string-generation-with-upper-case-letters-and-digits-in-python
 
 def id_gen(size, chars = string.ascii_lowercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
-
-def id_gen_space(size, chars = string.ascii_lowercase + string.digits + ' '):
-    return ''.join(random.choice(chars) for _ in range(size))
     
 def addr_gen():
-    return id_gen(random.randint(1,8))+'@'+id_gen(random.randint(1,6))
+    return id_gen(random.randint(1,10))+'@'+id_gen(random.randint(1,6))
 
-def addr_gen_space():
-    return id_gen(random.randint(1,8))+'@'+id_gen(random.randint(1,6))
+class Send_Handler:
+    
+    def __init__(self, socket):
+        self.message_buf = ''
+        self.socket      = socket
+     
+    def send(self, message):
+        
+        try:
+            self.socket.send(message.encode('utf-8')+'\r\n')
+        except socket.error:
+            print('client> Send error')
+            self.socket.close()
+            return
+    
+    def receive(self):
+        
+        while True:
+            if self.message_buf.find('\r\n') != -1:
+                break
+            else:
+                try:
+                    self.socket.settimeout(10)
+                    self.message_buf += self.socket.recv(500)
+                    self.socket.settimeout(None)
+                except socket.error:
+                    print('client> Receive error')
+                    self.socket.close()
+                    return
+                    
+        message_return = self.message_buf[0:self.message_buf.find('\r\n')]
+        self.message_buf = self.message_buf[self.message_buf.find('\r\n')+2: ]
+        return message_return
+        
+    def handle(self):
+        
+        k = randint(1,100)
+        
+        if k <= 70:
+            # 70 percent of chance generate correct command sequence
+            self.send('HELO ' + id_gen(5))
+            print('server> ' + self.receive())
+            self.send('MAIL FROM:' + addr_gen())
+            print('server> ' + self.receive())
+            n = randint(1,6)
+            for i in range(n):
+                self.send('RCPT TO: ' + addr_gen())
+                print('server> ' + self.receive())
+            self.send("DATA\r\n")
+            print('server> ' + self.receive())    
+            self.send(id_gen( randint(20, 100) ))
+            print('server> ' + self.receive())    
+            self.send('\r\n.\r\n')
+            print('server> ' + self.receive())
+        else:
+            # generate random command sequence
+            command = {
+                1 : 'HELO ',
+                2 : 'MAIL FROM: ',
+                3 : 'MAIL FROM ',
+                4 : 'RCPT TO: ',
+                5 : 'RCPT TO ',
+                6 : 'DATA',
+                7 : 'HELO'
+            }
+            addr = {
+                1 : addr_gen(),
+                # invalide address (with space)
+                2 : id_gen(randint(1,8)) + '@' + id_gen(randint(1,3)) + ' ' + id_gen(randint(1,5)),
+                3 : '',
+                4 : id_gen(randint(1,30))
+            }
 
-def send(socket, message):
-    # In Python 3, must convert message to bytes explicitly.
-    # In Python 2, this does not affect the message.
-    socket.send(message.encode('utf-8'))
+            N = randint(1,20)
+            for i in range(N):
+                r1 = randint(1,7)
+                r2 = randint(1,4)
+                self.send(command[r1] + addr[r2])
+                print('server> ' + self.receive())
+            self.send('\r\n.\r\n')
+            print('server> ' + self.receive())
+
+class Worker(Thread):
     
-class Send_Worker(Thread):
-    
-    def __init__(self, thread_id):
+    def __init__(self):
         Thread.__init__(self)
         self.start()
-        self.thread_id = thread_id
-        
     
     def run(self):
         
-        global host, port, toaddr, fromaddr
-        global socket_lock, counter_lock, counter
+        global sender_lock, task_add_cv, ready_socket, counter
         
         while True:
-            
-            with socket_lock:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.connect((host, port))
-                if random.randint(1,100) < 60:
-                    # 60% chance to generate normal sequence
-                    send(s, "HELO %s\r\n" % id_gen(random.randint(1,8)))
-                    print(s.recv(500))
-                    send(s, "MAIL FROM: %s\r\n" % addr_gen())
-                    print(s.recv(500))
-                    N = random.randint(1,5)
-                    for i in range(1,N):
-                        send(s, "RCPT TO: %s\r\n" % addr_gen())
-                    print(s.recv(500))
-                    send(s, 'DATA\r\n')
-                    print(s.recv(500))
-                    N = random.randint(1,15)
-                    for i in range(1,N):
-                        send(s, "%s\r\n" % id_gen(random.randint(1,15)))
-                    send(s, '.\r\n')
-                    print(s.recv(500))    
-                else:
-                    N = random.randint(5,25)
-                    for i in range(1,N):
-                        
-                        commands = {
-                            0 : 'HELO ',
-                            1 : 'MAIL FROM: ',
-                            2 : 'RCPT TO: ',
-                            3 : 'DATA',
-                            4 : ''
-                        }
-                        k = random.randint(1,4)
-                        if k == 1 or k == 2:
-                            para = addr_gen_space()
-                        else:
-                            para = id_gen_space(random.randint(1,15)) 
-                        send(s, commands[k] + para + '\r\n')
-                        print(s.recv(500))
-                    
-                    with counter_lock:
-                        if counter >= 1000:
-                            return
-                        else:
-                            counter += 1
+            with sender_lock:
+                while ready_socket == None:
+                    task_add_cv.wait()
+                counter += 1
+                print('client> send counter = ' + str(counter))
+                handler = Send_Handler(ready_socket)
+                ready_socket = None
+                task_finished_cv.notify()                   
+            handler.handle()
+                       
+class ThreadPool:
+    
+    def __init__(self):
+        
+        global sender_lock
+
+        with sender_lock:
+            for i in range(32):
+                Worker()
+        
+    def push_task(self, clientsocket):
+        
+        global sender_lock, task_add_cv, task_finished_cv
+        global ready_socket, counter
+        
+        with sender_lock:
+            while ready_socket != None or counter >= 1000:
+                task_finished_cv.wait()
+            ready_socket = clientsocket
+            task_add_cv.notify()                            
+
+
+
+thread_pool = ThreadPool()
                             
-                            
-                            
-                            
-for i in range(32):
-    Send_Worker(i)
+while True:
+    try:
+        clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        clientsocket.connect((host, port))
+    except socket.error:
+        print('connection error')
+        clientsocket.close()
+    thread_pool.push_task(clientsocket)
+
                         
                         
                         
