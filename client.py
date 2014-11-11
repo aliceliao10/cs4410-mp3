@@ -11,7 +11,11 @@ fromaddr = sys.argv[4] if len(sys.argv) > 4 else "nobody@example.com"
 def send(socket, message):
     # In Python 3, must convert message to bytes explicitly.
     # In Python 2, this does not affect the message.
-    socket.send(message.encode('utf-8'))
+    try:
+        socket.send(message.encode('utf-8'))
+    except socket.error:
+        print('Send error')
+        return
 
 def sendmsg(msgid, hostname, portnum, sender, receiver):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -31,4 +35,3 @@ def sendmsg(msgid, hostname, portnum, sender, receiver):
 
 for i in range(1, 300):
     sendmsg(i, host, port, fromaddr, toaddr)
-
