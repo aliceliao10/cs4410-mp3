@@ -1,23 +1,41 @@
-NETID:  <your netid here>
+NETID:  mw828
 
 Describe the contents of an IP packet and for each field describe the purpose it serves.
 
-    <your answer>
+  1. version: version number of IP protocol, e.g. IPv4
+  2. header length: define the length of the header since the header's length is not fixed.
+  3. TOS: type of service, used for distinguishing IP datagrams type, e.g. low delay, high throughput, etc. 
+  4. Datagram length: total length of IP packet, header + data.
+  5. Identifier, flags, fragmentation offset: used for uniquely identifying the group of fragments of a single IP datagram
+  6. TTL: time-to-live, to ensure the packet does not circulate forever
+  7. Protocol: describe upper-layer protocol, e.g. UDP, TCP, used by destination.
+  8. Header checksum: to aid the router detecting errors in the header
+  9. Source and destination IP addresses: self-explanatory
+  10. Options: this is optional, to extend IP header, rarly used.
+  11. Data: the payload, usually the transport-layer segment (e.g. TCP)
 
 Describe the general operation of the BGP protocol.
 
-    <your answer>
+  BGP works by attempting to flood information about each set of destinations throughout the Internet. Each node informs each other of the destinations they can reach, and with what cost (e.g. # of hops).
+  
+  For example:
+  A might tell B: "I can reach X in 3 hops, Y in 4 hops, Z in 2 hops", 
+  C might tell B: "I can reach X in 4 hops, Y in 1 hop,  Z in 2 hops". 
+  
+   If B has a neighbour D, then B would tell D "I can reach X in 4 hops, Y in 2 hops, Z in 3 hops", choosing the path with minimum cost. 
+   
+   By this way, each node has the information about how to reach every node with the minimum cost. This is also Bellman-Ford shortest-path algorithm.
 
 Describe why the ethernet protocol necessitates a minimum packet size.
 
-    <your answer>
+The Ethernet minimum frame size is for collision detection. To detect a collision, Ethernet nodes must be transmitting long enough for the signal indicating the collision to be propagated back to the sending node.
 
 Describe how TCP reacts to congestion in the network.  Assume that
 congestion is brought on by BGP reconfiguring the path such that TCP
 packets now go through a bottleneck link of capacity B packets/second.
 Describe in detail what TCP will do when faced with this bottleneck.
 
-    <your answer>
+TCP detects bottleneck by lost events, i.e. duplicated acks or timeouts. WHen lost event occurs, sender gets back to 1 MSS, and enters slow-start state, doubling sending rate each RTT. When the send rate reaches its congestion window, which is half the rate when last lost occured, B*RTT/MSS, then it enters congestion avoidance mode, increasing 1 MSS every RTT, until the bandwith is reached again, indicated by another lost event.  
 
 Describe TCP's behavior when it is first getting started delivering data
 over a high latency, high-bandwidth channel such as a satellite link. Be
