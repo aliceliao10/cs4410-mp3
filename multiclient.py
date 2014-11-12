@@ -75,19 +75,31 @@ class Send_Handler:
         if k <= 70:
             # 70 percent of chance generate correct command sequence
             self.send('HELO ' + id_gen(5))
-            print('server> ' + self.receive())
+            rmsg = self.receive()
+            if rmsg != None:
+                print('server> ' + rmsg)
             self.send('MAIL FROM:' + addr_gen())
-            print('server> ' + self.receive())
+            rmsg = self.receive()
+            if rmsg != None:
+                print('server> ' + rmsg)
             n = randint(1,6)
             for i in range(n):
                 self.send('RCPT TO: ' + addr_gen())
-                print('server> ' + self.receive())
+                rmsg = self.receive()
+                if rmsg != None:
+                    print('server> ' + rmsg)
             self.send("DATA\r\n")
-            print('server> ' + self.receive())    
+            rmsg = self.receive()
+            if rmsg != None:
+                print('server> ' + rmsg)   
             self.send(id_gen( randint(20, 100) ))
-            print('server> ' + self.receive())    
+            rmsg = self.receive()
+            if rmsg != None:
+                print('server> ' + rmsg)    
             self.send('\r\n.\r\n')
-            print('server> ' + self.receive())
+            rmsg = self.receive()
+            if rmsg != None:
+                print('server> ' + rmsg)
         else:
             # generate random command sequence
             command = {
@@ -112,9 +124,13 @@ class Send_Handler:
                 r1 = randint(1,7)
                 r2 = randint(1,4)
                 self.send(command[r1] + addr[r2])
-                print('server> ' + self.receive())
+                rmsg = self.receive()
+                if rmsg != None:
+                    print('server> ' + rmsg)
             self.send('\r\n.\r\n')
-            print('server> ' + self.receive())
+            rmsg = self.receive()
+            if rmsg != None:
+                print('server> ' + rmsg)
 
 class Worker(Thread):
     

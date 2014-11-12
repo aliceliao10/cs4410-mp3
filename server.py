@@ -305,7 +305,7 @@ class ConnectionHandler:
         
         elif command_t == 'RCPT TO' and colon != -1:
             print('server> 555 <'+to_addr_t+'>: Recepient address invalid')
-            self.send('555 <'+to_addr+'>: Recepient address invalid')
+            self.send('555 <'+to_addr_t+'>: Recepient address invalid')
             self.error_count += 1
         elif command_t == 'RCPT TO' or self.message_receive.upper().find('RCPT TO') != -1:
             print('server> 501 Syntax: RCPT TO: youremail@yourhost.com')

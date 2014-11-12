@@ -11,7 +11,7 @@ Describe the contents of an IP packet and for each field describe the purpose it
   7. Protocol: describe upper-layer protocol, e.g. UDP, TCP, used by destination.
   8. Header checksum: to aid the router detecting errors in the header
   9. Source and destination IP addresses: self-explanatory
-  10. Options: this is optional, to extend IP header, rarly used.
+  10. Options: this is optional, to extend IP header, rarely used.
   11. Data: the payload, usually the transport-layer segment (e.g. TCP)
 
 Describe the general operation of the BGP protocol.
@@ -22,7 +22,7 @@ Describe the general operation of the BGP protocol.
   A might tell B: "I can reach X in 3 hops, Y in 4 hops, Z in 2 hops", 
   C might tell B: "I can reach X in 4 hops, Y in 1 hop,  Z in 2 hops". 
   
-   If B has a neighbour D, then B would tell D "I can reach X in 4 hops, Y in 2 hops, Z in 3 hops", choosing the path with minimum cost. 
+   If B has a neighbor D, then B would tell D "I can reach X in 4 hops, Y in 2 hops, Z in 3 hops", choosing the path with minimum cost. 
    
    By this way, each node has the information about how to reach every node with the minimum cost. This is also Bellman-Ford shortest-path algorithm.
 
@@ -35,14 +35,14 @@ congestion is brought on by BGP reconfiguring the path such that TCP
 packets now go through a bottleneck link of capacity B packets/second.
 Describe in detail what TCP will do when faced with this bottleneck.
 
-TCP detects bottleneck by lost events, i.e. duplicated acks or timeouts. WHen lost event occurs, sender gets back to 1 MSS, and enters slow-start state, doubling sending rate each RTT. When the send rate reaches its congestion window, which is half the rate when last lost occured, B*RTT/MSS, then it enters congestion avoidance mode, increasing 1 MSS every RTT, until the bandwith is reached again, indicated by another lost event.  
+TCP detects bottleneck by lost events, i.e. duplicated acks or timeouts. When lost event occurs, sender gets back to 1 MSS, and enters slow-start state, doubling sending rate each RTT. When the send rate reaches its congestion window, which is half the rate when last lost occurred, B*RTT/MSS, then it enters congestion avoidance mode, increasing 1 MSS every RTT, until the bandwidth is reached again, indicated by another lost event. Then set the congestion window to 1 MSS, get back to slow-start again. The overall behavior of TCP is “saw tooth”.
 
 Describe TCP's behavior when it is first getting started delivering data
 over a high latency, high-bandwidth channel such as a satellite link. Be
 sure to explain how TCP manages its window size during the initial
 connection setup.
 
-    <your answer>
+Firstly, set the window size to 1 MSS, then for each ACK, increment the window size by 1 MSS, which results in doubling the sending rate for each ACK (non-duplicated). This process is called slow-start phase.
 
 On an ethernet segment, the ARP protocol is used to locate the ethernet
 address of a host whose IP address is known. On the Internet, DNS is
@@ -52,47 +52,54 @@ while the latter implements a scalable, distributed database. Explain
 why DNS was designed the way it was, and not, for instance, based on
 a simple broadcast.
 
-    <your answer>
+On Internet the number of hosts is enormous, so a hierarchical approach is used to reduce the traffic on the Internet. If DNS service is based on broadcast, then the size of the Internet can not possibly be so large as it is today. The traffic needed by broadcast is unrealistic.
 
 Describe the two means by which a DNS name, such as www.cnn.com, is
 resolved.
 
-    <your answer>
+1. Iterative way: the client sends the request to a name server, then the server sends back the answer or another server. If the response is another server, then the client sends request to that new server, and so on.
+
+2. Recursive way: The client sends a request to a name server, then the server responds with answer if it has, if not, then the server will ask other servers on behalf of the client recursively. 
 
 What is a DNS local resolver?
 
-    <your answer>
+A local DNS resolver is standard piece of software installed on the server performing DNS lookups that can lookup the Fully Qualified Domain Name (FQDN) for any IP address.
 
 What purpose does the ACK # serve in TCP?
 
-    <your answer>
+The acknowledgment number is the sequence number of the next byte of data that the host is waiting for, i.e. it does cumulative acknowledgment. It is used to acknowledge the successfully transmitted packet and detect packet loss when duplicated ACK received. 
 
 What purpose does the destination port number serve in UDP?
 
-    <your answer>
+Demultiplexing. To send the UDP packet to the correct process on the destination host.
 
 Why does UDP include a checksum? Wouldn't the end-to-end argument
 require that all checksums be performed at the application level, and
 hence argue that UDP and TCP elide such additional checksums in the
 network stack?
 
-    <your answer>
+UDP’s checksum is just for error detection, to ensure the delivered UDP packet’s integrity. Not all application level do checksum or need checksum. An end-to-end argument require that we should not rely on other layer. So the checksum should be done at every layer, even if the application layer may do redundant checksums.
 
 Imagine that a mail server on host A has just received a TCP/IP SYN
 packet destined for it. Describe everything that happens to this packet
 from the point of its reception by the network interface card to the
 point of its delivery to the mail server.
 
-    <your answer>
-
- 
+1. The physical network layer receives the packet, it computes the CRC and sends to link-layer.
+2. The link-layer verifies the CRC and strips the frame header then send the IP datagram to network-layer.
+3. The internet layer reads the IP header, check the checksum, detects the upper-layer protocol, etc. If the datagram is identified, then IP header is stripped off and the TCP packet is sent to the transport layer.
+4. The transport layer using the TCP header (destination port #) to determine the process to which the packet should be delivered. Then the TCP checksum is verified and the TCP header is stripped off and the payload data is sent to the destination process, which is the mail server application. 
 
 In IPv6, why do routers not fragment packets. What does IPv6
 do instead of fragmentation?
 
-    <your answer>
+If fragmentation is allowed, then the router must buffer fragmented packets for a while until the rest are received. Therefore it is possible that many unfinished fragmented packets are received, draining the resource. Another reason is that it tends to create security holes (cite from: http://stackoverflow.com/questions/6254973/what-are-the-benefits-of-removing-fragmentation-from-ipv6).
+
+In IPv6, packets exceeding the maximum size are dropped and the source node will be notified by Packet too Big message.
 
 What is the difference between a web proxy and a vpn? When would it be advantageous 
 to use a proxy instead of a vpn?
 
-    <your answer>
+Proxy is an intermediary between the client host and the internet. The traffic will be routed through the proxy so that the outgoing messages will be appeared as if they were sent from the proxy server, not the client. A vpn is a secured, encrypted virtual tunnel between two hosts.
+
+Proxy is preferred if we only want to use part of the service of the internet through proxy, say HTTP. We do not need to access the internet through proxy server for other services. If we use VPN, then all internet access will be through the vpn tunnel. Also, proxy servers are cheaper (usually) than an VPN service.  

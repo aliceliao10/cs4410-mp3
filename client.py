@@ -49,17 +49,29 @@ def sendmsg(msgid, hostname, portnum, sender, receiver):
         return
 
     send(s, "HELO %s\r\n" % socket.gethostname())
-    print('server> ' + receive(s))
+    rmsg = receive(s)
+    if rmsg != None:
+        print('server> ' + rmsg)
     send(s, "MAIL FROM: %s\r\n" % sender)
-    print('server> ' + receive(s))
+    rmsg = receive(s)
+    if rmsg != None:
+        print('server> ' + rmsg)
     send(s, "RCPT TO: %s\r\n" % receiver)
-    print('server> ' + receive(s))
+    rmsg = receive(s)
+    if rmsg != None:
+        print('server> ' + rmsg)
     send(s, "DATA\r\n")
-    print('server> ' + receive(s))    
+    rmsg = receive(s)
+    if rmsg != None:
+        print('server> ' + rmsg)    
     send(s, "Date: %s -0500\r\nSubject: msg %d\r\n\n\nContents of message %d end here." % (datetime.datetime.now().ctime(), msgid, msgid))
-    print('server> ' + receive(s))    
+    rmsg = receive(s)
+    if rmsg != None:
+        print('server> ' + rmsg) 
     send(s, "\r\n.\r\n")
-    print('server> ' + receive(s))
+    rmsg = receive(s)
+    if rmsg != None:
+        print('server> ' + rmsg)
     
 for i in range(1, 20):
     sendmsg(i, host, port, fromaddr, toaddr)
